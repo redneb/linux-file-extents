@@ -20,6 +20,10 @@ cabal-version:       >=1.10
 extra-source-files:
   include/fiemap.h
 
+source-repository head
+  type: git
+  location: https://github.com/redneb/linux-file-extents.git
+
 flag examples
   description:         Build examples
   default:             False
