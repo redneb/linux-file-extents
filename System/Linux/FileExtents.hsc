@@ -176,19 +176,29 @@ getExtentsFd
     -> Fd
     -> Maybe (Word64, Word64) -- ^ The range (offset and length) within the file to look extents for. Use 'Nothing' for the entire file.
     -> IO [Extent]
-getExtentsFd flags (Fd fd) range =
+getExtentsFd = getExtentsPathFd "getExtentsFd" Nothing
+
+-- |Like 'getExtentsFd' except that it operates on file paths instead of
+-- file descriptors.
+getExtents :: Flags -> FilePath -> Maybe (Word64, Word64) -> IO [Extent]
+getExtents flags path range =
+    bracket (openFd path ReadOnly Nothing defaultFileFlags) closeFd $ \fd ->
+        getExtentsPathFd "getExtents" (Just path) flags fd range
+
+getExtentsPathFd :: String -> Maybe FilePath -> Flags -> Fd -> Maybe (Word64, Word64) -> IO [Extent]
+getExtentsPathFd loc path flags fd range =
     allocaBytes allocSize $ \fiemap -> do
         let (start, len) = fromMaybe (0, maxBound) range
         memset (castPtr fiemap) 0 (#size struct fiemap)
-        l <- getExtentsFd' start len fiemap
+        l <- getExtentsPathFd' start len fiemap
         return (concat l)
   where
-    getExtentsFd' start len fiemap = do
+    getExtentsPathFd' start len fiemap = do
         (#poke struct fiemap, fm_start       ) fiemap start
         (#poke struct fiemap, fm_length      ) fiemap len
         (#poke struct fiemap, fm_flags       ) fiemap flags'
         (#poke struct fiemap, fm_extent_count) fiemap maxExtentCount
-        throwErrnoIfMinus1_ "getExtentsFd" $ ioctl fd (#const FS_IOC_FIEMAP) fiemap
+        ioctl_fiemap loc path fd fiemap
         mappedExtents <- (#peek struct fiemap, fm_mapped_extents) fiemap :: IO Word32
         let extentsPtr = fiemap `plusPtr` (#offset struct fiemap, fm_extents)
         extents <- peekArray (fromIntegral mappedExtents) extentsPtr
@@ -198,7 +208,7 @@ getExtentsFd flags (Fd fd) range =
                     , lExtEnd <- extLogical lExt + extLength lExt
                     , bytesLeft <- start + len - lExtEnd
                     , bytesLeft > 0 -> do
-                more <- getExtentsFd' lExtEnd bytesLeft fiemap
+                more <- getExtentsPathFd' lExtEnd bytesLeft fiemap
                 return (extents : more)
             _ -> return [extents]
     flags' = encodeFlags flags
@@ -206,20 +216,23 @@ getExtentsFd flags (Fd fd) range =
     maxExtentCount = (fromIntegral allocSize - (#size struct fiemap)) `quot` (#size struct fiemap_extent);
     allocSize = 16 * 1024
 
--- |Like 'getExtentsFd' except that it operates on file paths instead of
--- file descriptors.
-getExtents :: Flags -> FilePath -> Maybe (Word64, Word64) -> IO [Extent]
-getExtents flags path range = do
-    bracket (openFd path ReadOnly Nothing defaultFileFlags) closeFd $ \fd ->
-        getExtentsFd flags fd range
-
 --------------------------------------------------------------------------------
 -- get extent count
 
 -- |Like 'getExtentsFd' except that it returns the number of extents
 -- instead of a list.
 getExtentCountFd :: Flags -> Fd -> Maybe (Word64, Word64) -> IO Word32
-getExtentCountFd flags (Fd fd) range = do
+getExtentCountFd = getExtentCountPathFd "getExtentCountFd" Nothing
+
+-- |Like 'getExtents' except that it returns the number of extents
+-- instead of a list.
+getExtentCount :: Flags -> FilePath -> Maybe (Word64, Word64) -> IO Word32
+getExtentCount flags path range =
+    bracket (openFd path ReadOnly Nothing defaultFileFlags) closeFd $ \fd ->
+        getExtentCountPathFd "getExtentCount" (Just path) flags fd range
+
+getExtentCountPathFd :: String -> Maybe FilePath -> Flags -> Fd -> Maybe (Word64, Word64) -> IO Word32
+getExtentCountPathFd loc path flags fd range = do
     let (start, len) = fromMaybe (0, maxBound) range
     allocaBytes (#size struct fiemap) $ \fiemap -> do
         memset (castPtr fiemap) 0 (#size struct fiemap)
@@ -227,22 +240,24 @@ getExtentCountFd flags (Fd fd) range = do
         (#poke struct fiemap, fm_length      ) fiemap len
         (#poke struct fiemap, fm_flags       ) fiemap flags'
         (#poke struct fiemap, fm_extent_count) fiemap (0 :: Word32)
-        throwErrnoIfMinus1_ "getExtentCountFd" $ ioctl fd (#const FS_IOC_FIEMAP) fiemap
+        ioctl_fiemap loc path fd fiemap
         #{peek struct fiemap, fm_mapped_extents} fiemap
   where
     flags' = encodeFlags flags
 
--- |Like 'getExtents' except that it returns the number of extents
--- instead of a list.
-getExtentCount :: Flags -> FilePath -> Maybe (Word64, Word64) -> IO Word32
-getExtentCount flags path range = do
-    bracket (openFd path ReadOnly Nothing defaultFileFlags) closeFd $ \fd ->
-        getExtentCountFd flags fd range
-
 --------------------------------------------------------------------------------
 -- auxiliary stuff
 
-foreign import ccall unsafe ioctl :: CInt -> CULong -> Ptr a -> IO CInt
+foreign import ccall unsafe ioctl :: Fd -> CULong -> Ptr a -> IO CInt
+
+ioctl_fiemap :: String -> Maybe FilePath -> Fd -> Ptr a -> IO ()
+ioctl_fiemap loc mPath fd buf =
+    case mPath of
+        Nothing ->
+            throwErrnoIfMinus1_ loc $ ioctl fd (#const FS_IOC_FIEMAP) buf
+        Just path ->
+            throwErrnoPathIfMinus1_ loc path $ ioctl fd (#const FS_IOC_FIEMAP) buf
+{-# INLINE ioctl_fiemap #-}
 
 foreign import ccall unsafe "string.h memset"
     c_memset :: Ptr a -> CInt -> CSize -> IO (Ptr a)
