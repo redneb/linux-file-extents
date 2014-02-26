@@ -36,8 +36,8 @@ module System.Linux.FileExtents
     -- * Extents
     , Extent(..)
     -- * Request flags
-    , Flags(..)
-    , defaultFlags
+    , ReqFlags(..)
+    , defReqFlags
     -- * Getting extent information
     , getExtentsFd
     , getExtents
@@ -138,25 +138,25 @@ instance Storable Extent where
 --------------------------------------------------------------------------------
 -- request flags
 
--- |Request flags.
-data Flags = Flags
-    { fSync :: Bool  -- ^ Sync the file before requesting its extents.
-    , fXattr :: Bool -- ^ Retrieve the extents of the inode's extended attribute lookup tree, instead of its data tree.
-    , fCache :: Bool -- ^ Request caching of the extents (not supported by older kernels).
+-- |Flags the modify the behavior of extent information requests.
+data ReqFlags = ReqFlags
+    { rfSync :: Bool  -- ^ Sync the file before requesting its extents.
+    , rfXattr :: Bool -- ^ Retrieve the extents of the inode's extended attribute lookup tree, instead of its data tree.
+    , rfCache :: Bool -- ^ Request caching of the extents (not supported by older kernels).
     }
   deriving (Show, Eq)
 
 -- |Default values for the request flags. All options are disabled.
-defaultFlags :: Flags
-defaultFlags = Flags False False False
+defReqFlags :: ReqFlags
+defReqFlags = ReqFlags False False False
 
-encodeFlags :: Flags -> Word32
+encodeFlags :: ReqFlags -> Word32
 encodeFlags f =
-    (if fSync f then (#const FIEMAP_FLAG_SYNC) else 0)
+    (if rfSync f then (#const FIEMAP_FLAG_SYNC) else 0)
       .|.
-    (if fXattr f then (#const FIEMAP_FLAG_XATTR) else 0)
+    (if rfXattr f then (#const FIEMAP_FLAG_XATTR) else 0)
       .|.
-    (if fCache f then (#const FIEMAP_FLAG_CACHE) else 0)
+    (if rfCache f then (#const FIEMAP_FLAG_CACHE) else 0)
 
 --------------------------------------------------------------------------------
 -- get extents
@@ -172,7 +172,7 @@ encodeFlags f =
 -- has too many fragments. If the file is modified in the meantime, the
 -- returned list might be inconsistent.
 getExtentsFd
-    :: Flags
+    :: ReqFlags
     -> Fd
     -> Maybe (Word64, Word64) -- ^ The range (offset and length) within the file to look extents for. Use 'Nothing' for the entire file.
     -> IO [Extent]
@@ -180,12 +180,12 @@ getExtentsFd = getExtentsPathFd "getExtentsFd" Nothing
 
 -- |Like 'getExtentsFd' except that it operates on file paths instead of
 -- file descriptors.
-getExtents :: Flags -> FilePath -> Maybe (Word64, Word64) -> IO [Extent]
+getExtents :: ReqFlags -> FilePath -> Maybe (Word64, Word64) -> IO [Extent]
 getExtents flags path range =
     bracket (openFd path ReadOnly Nothing defaultFileFlags) closeFd $ \fd ->
         getExtentsPathFd "getExtents" (Just path) flags fd range
 
-getExtentsPathFd :: String -> Maybe FilePath -> Flags -> Fd -> Maybe (Word64, Word64) -> IO [Extent]
+getExtentsPathFd :: String -> Maybe FilePath -> ReqFlags -> Fd -> Maybe (Word64, Word64) -> IO [Extent]
 getExtentsPathFd loc path flags fd range =
     allocaBytes allocSize $ \fiemap -> do
         let (start, len) = fromMaybe (0, maxBound) range
@@ -221,17 +221,17 @@ getExtentsPathFd loc path flags fd range =
 
 -- |Like 'getExtentsFd' except that it returns the number of extents
 -- instead of a list.
-getExtentCountFd :: Flags -> Fd -> Maybe (Word64, Word64) -> IO Word32
+getExtentCountFd :: ReqFlags -> Fd -> Maybe (Word64, Word64) -> IO Word32
 getExtentCountFd = getExtentCountPathFd "getExtentCountFd" Nothing
 
 -- |Like 'getExtents' except that it returns the number of extents
 -- instead of a list.
-getExtentCount :: Flags -> FilePath -> Maybe (Word64, Word64) -> IO Word32
+getExtentCount :: ReqFlags -> FilePath -> Maybe (Word64, Word64) -> IO Word32
 getExtentCount flags path range =
     bracket (openFd path ReadOnly Nothing defaultFileFlags) closeFd $ \fd ->
         getExtentCountPathFd "getExtentCount" (Just path) flags fd range
 
-getExtentCountPathFd :: String -> Maybe FilePath -> Flags -> Fd -> Maybe (Word64, Word64) -> IO Word32
+getExtentCountPathFd :: String -> Maybe FilePath -> ReqFlags -> Fd -> Maybe (Word64, Word64) -> IO Word32
 getExtentCountPathFd loc path flags fd range = do
     let (start, len) = fromMaybe (0, maxBound) range
     allocaBytes (#size struct fiemap) $ \fiemap -> do
