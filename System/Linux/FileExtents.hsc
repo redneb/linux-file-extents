@@ -56,7 +56,7 @@ import System.Posix.IO
 
 #include <sys/ioctl.h>
 #include <linux/fs.h>
-#include <linux/fiemap.h>
+#include "fiemap.h"
 
 --------------------------------------------------------------------------------
 -- extent flags
@@ -142,19 +142,21 @@ instance Storable Extent where
 data Flags = Flags
     { fSync :: Bool  -- ^ Sync the file before requesting its extents.
     , fXattr :: Bool -- ^ Retrieve the extents of the inode's extended attribute lookup tree, instead of its data tree.
+    , fCache :: Bool -- ^ Request caching of the extents (not supported by older kernels).
     }
   deriving (Show, Eq)
 
--- |Default values for the request flags. Both 'fSync' and 'fXattr' are set
--- to False.
+-- |Default values for the request flags. All options are disabled.
 defaultFlags :: Flags
-defaultFlags = Flags False False
+defaultFlags = Flags False False False
 
 encodeFlags :: Flags -> Word32
 encodeFlags f =
     (if fSync f then (#const FIEMAP_FLAG_SYNC) else 0)
       .|.
     (if fXattr f then (#const FIEMAP_FLAG_XATTR) else 0)
+      .|.
+    (if fCache f then (#const FIEMAP_FLAG_CACHE) else 0)
 
 --------------------------------------------------------------------------------
 -- get extents
