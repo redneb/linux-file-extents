@@ -138,7 +138,7 @@ instance Storable Extent where
 --------------------------------------------------------------------------------
 -- request flags
 
--- |Flags the modify the behavior of extent information requests.
+-- |Flags that modify the behavior of extent information requests.
 data ReqFlags = ReqFlags
     { rfSync :: Bool  -- ^ Sync the file before requesting its extents.
     , rfXattr :: Bool -- ^ Retrieve the extents of the inode's extended attribute lookup tree, instead of its data tree.
