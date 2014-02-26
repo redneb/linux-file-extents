@@ -20,6 +20,10 @@ cabal-version:       >=1.10
 extra-source-files:
   include/fiemap.h
 
+flag examples
+  description:         Build examples
+  default:             False
+
 library
   exposed-modules:     System.Linux.FileExtents
   include-dirs:        include
@@ -27,3 +31,13 @@ library
   build-tools:         hsc2hs
   default-language:    Haskell2010
   ghc-options:         -Wall
+
+executable print-extents
+  hs-source-dirs:      examples
+  main-is:             print-extents.hs
+  if !flag(examples)
+    buildable:           False
+  else
+    build-depends:       base >=4.6 && <5, linux-file-extents
+    default-language:    Haskell2010
+    ghc-options:         -Wall
