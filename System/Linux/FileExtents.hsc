@@ -7,7 +7,7 @@
 --
 -- This module can be used to retrieve information about how a
 -- particular file is stored on disk (i.e. the file fragmentation).
--- It accomplishes that by directly calling the FIEMAP ioctl provided by
+-- It accomplishes that by calling the FIEMAP ioctl provided by
 -- recent versions of the Linux kernel. This ioctl is specific to Linux
 -- and therefore this module is not portable.
 --
