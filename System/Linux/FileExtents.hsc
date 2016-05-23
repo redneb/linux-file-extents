@@ -119,9 +119,13 @@ data Extent = Extent
     }
   deriving (Show, Eq)
 
+#if __GLASGOW_HASKELL__ < 800
+#let alignment t = "%lu", (unsigned long)offsetof(struct {char x__; t (y__); }, y__)
+#endif
+
 instance Storable Extent where
     sizeOf _ = #size struct fiemap_extent
-    alignment _ = alignment (undefined :: Int)
+    alignment _ = (#alignment struct fiemap_extent)
     peek ptr = do
         extLogical_  <- (#peek struct fiemap_extent, fe_logical ) ptr
         extPhysical_ <- (#peek struct fiemap_extent, fe_physical) ptr
