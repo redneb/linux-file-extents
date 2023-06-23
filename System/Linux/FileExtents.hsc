@@ -186,7 +186,7 @@ getExtentsFd = getExtentsPathFd "getExtentsFd" Nothing
 -- file descriptors.
 getExtents :: ReqFlags -> FilePath -> Maybe (Word64, Word64) -> IO [Extent]
 getExtents flags path range =
-    bracket (openFd path ReadOnly Nothing defaultFileFlags) closeFd $ \fd ->
+    bracket (openFd path ReadOnly defaultFileFlags) closeFd $ \fd ->
         getExtentsPathFd "getExtents" (Just path) flags fd range
 
 getExtentsPathFd :: String -> Maybe FilePath -> ReqFlags -> Fd -> Maybe (Word64, Word64) -> IO [Extent]
@@ -232,7 +232,7 @@ getExtentCountFd = getExtentCountPathFd "getExtentCountFd" Nothing
 -- instead of a list.
 getExtentCount :: ReqFlags -> FilePath -> Maybe (Word64, Word64) -> IO Word32
 getExtentCount flags path range =
-    bracket (openFd path ReadOnly Nothing defaultFileFlags) closeFd $ \fd ->
+    bracket (openFd path ReadOnly defaultFileFlags) closeFd $ \fd ->
         getExtentCountPathFd "getExtentCount" (Just path) flags fd range
 
 getExtentCountPathFd :: String -> Maybe FilePath -> ReqFlags -> Fd -> Maybe (Word64, Word64) -> IO Word32
